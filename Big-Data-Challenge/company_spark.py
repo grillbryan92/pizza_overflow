@@ -13,8 +13,8 @@ from pyspark.sql.functions import *
 from pyspark.sql import SparkSession
 import json
 import os
-os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages=org.apache.hadoop:hadoop-aws:2.7.1 pyspark-shell"
 
+os.environ['PYSPARK_SUBMIT_ARGS'] = "--packages=org.apache.hadoop:hadoop-aws:2.7.1 pyspark-shell"
 conf = SparkConf().setAppName("something").setMaster("local")
 sc = SparkContext.getOrCreate(conf)
 sc = SparkSession.builder.master('local[*]').appName('app_name').getOrCreate()
@@ -54,10 +54,13 @@ jobs_df = rdd.toDF(jobColumn)
 rdd = sc.sparkContext.parallelize(salaryData)
 salaries_df = rdd.toDF(salaryColumn)
 
+# Change birth date format to 01.Jan.2021
 employees_df = employees_df.withColumn('birth_date', date_format('birth_date', 'd.MMM.yyy'))
+# Add collumn with email as [first 2 letter of first_name][last_name]@company.com no lowercase specified
 employees_df = employees_df.select(*employeeColumn
                                    , concat(employees_df.first_name[0:2],employees_df.last_name,lit("@company.com")).alias('email'))
 
+# Replace underscores with spaces and use capital letters
 for col in employeeColumn:
     employees_df = employees_df.withColumnRenamed(col,col.replace('_',' ').capitalize())
 
@@ -71,7 +74,7 @@ employees_df.createOrReplaceTempView("employees")
 jobs_df.createOrReplaceTempView("jobs")
 salaries_df.createOrReplaceTempView("salaries")
 
-
+# Calculate average salaries and save
 df2=sqlContext.sql("""
     SELECT j.`Title`, AVG(s.salary) AS average
     FROM jobs j
@@ -81,6 +84,7 @@ df2=sqlContext.sql("""
 df2.show()
 df2.createOrReplaceTempView("avg_salaries")
 
+# Flag for every salary if it is below or above average
 salaries_df=sqlContext.sql("""
     SELECT s.*
     ,CASE WHEN s.Salary < av.average THEN true ELSE false END as flag
